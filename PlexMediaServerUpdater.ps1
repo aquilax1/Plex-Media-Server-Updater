@@ -1,101 +1,163 @@
-#Start the update process
-Write-Host (get-date) "Starting plex media server updater"
-try
+param([String] $userName, [String] $serviceName, [Boolean] $deleteOldInstallers=$True)
+function getPlexService
 {
-	#basic configuration
-	#name of the plex media server windows service, PMService uses "PlexService", with NSSM need to know the service name
-	$service_name="PlexService"
-	#language of the installer, there are only two languages available: English and Korean
-	$language="English"
-	#temporary path to save the plex media server installer
-	$temp_path=$env:temp+"\"
-	#delete installer when finished, $True to delete it, $False to keep it
-	$delete_installer=$True
-	
-	#advanced confguration, should be changed if plex changes something in the download page or installation path
-	#checking for 32/64 version of windows to pick the right program files folder
+	#Get service from service name
+	if (![System.String]::IsNullOrEmpty($serviceName)) { return get-service $serviceName }
+	#Get service from Plex process, if it is running
+	$ser=$Null
+	$pro=$process
+	while ($ser -eq $Null -and $pro -ne $Null)
+	{
+		$ser=gwmi Win32_Service -Filter ("ProcessId="+$pro.ProcessId)
+		$pro=gwmi Win32_Process -Filter ("ProcessId="+$pro.ParentProcessId)
+	}
+	if ($ser -ne $Null) { return get-service $ser.Name}
+}
+
+function getPlexExecutablePath
+{
+	#Get Plex install path from registry
+	$path = Get-ItemProperty "HKCU:\Software\Plex, Inc.\Plex Media Server" -Name "InstallFolder" -ErrorAction SilentlyContinue
+	if ($path -match "InstallFolder" ) { return $path.InstallFolder+"\Plex Media Server.exe" }
+	#Get Plex install path from Plex process, if Plex is running
+	if ($process -ne $Null) { return $process.ExecutablePath }
+	#Get Plex default install path
 	$programs=$env:ProgramFiles
 	if (Test-Path ($programs+" (x86)")) {$programs=$programs+" (x86)"}
-	#installation path, where plex media server is installed, it is the same for all the users becase it can't be configured
 	$plex_path=$programs+"\Plex\Plex Media Server\Plex Media Server.exe"
-	#download page of plex media server, it should be changed if plex changes the download page url
-	#note: this is the public download page, users with plexpass have another download page
-	$download_page="https://plex.tv/downloads"
-	#version regex, search for the version number in the download page
-	$online_version_regex="Version (\d+\.\d+\.\d+\.\d+)"
-	#download link regex, search for the download link in the download page
-	$download_link_regex="<a .*?href=`"(.*?)`".*?>Download "+$language+"<\/a>"
+	if (Test-Path $plex_path) { return $plex_path }
+	#Nothing found, throw exception
+	throw [System.Exception] "Can't find Plex installation path"
+}
+
+function getPlexUserAccount
+{
+	#Get user name from Plex process, if Plex is running
+	if ($process -ne $Null) { return $process.GetOwner().User }
+	#Get user name from service, if there is one
+	if ($service -ne $Null) { return $service.StartName }
+	#Nothing found, throw exception
+	throw [System.Exception] "Can't determine user account if plex is not running and no service name is specified"
+}
+
+function getPlexLocalAppDataPath
+{
+	#Get user name from Plex process of service if not specified
+	if ([System.String]::IsNullOrEmpty($userName)) { $userName=getPlexUserAccount }
+	#Get user id from user name
+	$sid=([System.Security.Principal.NTAccount]$userName).Translate([System.Security.Principal.SecurityIdentifier]).Value
+	#Get Plex local app data path if specified in Plex configuration
+	$d=New-PSDrive HKU Registry HKEY_USERS
+	$path=Get-ItemProperty ("HKU:\"+$sid+"\Software\Plex, Inc.\Plex Media Server") -Name "LocalAppDataPath" -ErrorAction SilentlyContinue
+	if ($path -match "LocalAppDataPath" ) { return $path.LocalAppDataPath }
+	#Get Plex default path for local app data path
+	$path=Get-ItemProperty ("HKLM:\Software\Microsoft\Windows NT\CurrentVersion\ProfileList\"+$sid) -Name "ProfileImagePath" -ErrorAction SilentlyContinue
+	return ($path.ProfileImagePath)+"\AppData\Local\Plex Media Server"
+}
+
+function installPlex
+{
+	try
+	{
+		Write-Host (get-date) "Starting Plex installer"
+		Start-Process $installer.FullName -ArgumentList "/install /quiet /norestart" -Wait
+		Write-Host (get-date) "Installation completed"
+	}
+	catch { Write-Host (get-date) "Error:" $_.Exception.Message }
+}
+
+try
+{
+	#Get Plex process, if it is running
+	$process=gwmi Win32_Process -Filter "Name='Plex Media Server.exe'"
+	#Write-Host (Get-Date) "Plex is running?" ($process -ne $Null)
+
+	#Get Plex service, if there is one
+	$service=getPlexService
+	#Write-Host (Get-Date) "Plex is running as a service?" ($service -ne $Null)
+
+	#Check for same user in case of plex running as a desktop application
+	if ($service -eq $Null -and $process -ne $Null -and $process.GetOwner.User -ne $Env:UserName) { throw [System.Exception] "For Plex running as a desktop application this updater script must be executed under the same user account of Plex"}
+
+	#Get Plex version from executable
+	$plex_version=[System.Version] [System.Diagnostics.FileVersionInfo]::GetVersionInfo((getPlexExecutablePath)).FileVersion
+	#Write-Host (Get-Date) "Plex current installed version is" $plex_version
+
+	#Get all folders with their version in the "updates" folder
+	$installer_dirs=Get-ChildItem -D ((getPlexLocalAppDataPath)+"\Updates")
 	
-	#get installed version of plex media server from the executable
-	If (-not (Test-Path $plex_path)) { throw [System.Exception] "Plex media server is not installed, installation path should be "+$plex_path }
-	$inst_version=[System.Version] [System.Diagnostics.FileVersionInfo]::GetVersionInfo($plex_path).FileVersion
-	Write-Host (get-date) "Installed version of plex media server is" $inst_version 
-	
-	#get plex media server download page
-	Write-Host (get-date) "Checking online version of plex media server ..."
-	$client=new-object System.Net.WebClient
-	$page=$client.DownloadString($download_page)
-	
-	#get version from plex download page
-	$is_match=$page -match $online_version_regex
-	if (-not $is_match) { throw [System.Exception] "No version found on the download page, something is wrong, has changed ..." }
-	$online_version=[System.Version] $matches[1]
-	Write-Host (get-date) "Online version of plex media server is" $online_version
-	
-	#check if the online version is newer 
-	if ($online_version -le $inst_version) { throw [System.Exception] "No new version available to download" }
-	Write-Host (get-date) "A newer version of plex media server is available"
-	
-	#get download link
-	$is_match=$page -match $download_link_regex
-	if (-not $is_match) { throw [System.Exception] "No download link found on the download page, something is wrong, has changed ..." }
-	$download_url=[System.Uri] $matches[1]
-	
-	#download plex installer in temp folder
-	$installer_path=$temp_path+$download_url.Segments[$download_url.Segments.Length-1]
-	if (Test-Path $installer_path) { Write-Host (get-date) "Installer already available in" $installer_path}
+	#Get installer versions to compare to plex installed version
+	$installer_list=$installer_dirs | Select-Object -P FullName,@{Name="Version"; Expression={[System.Version][regex]::match($_.Name,"\d+\.\d+\.\d+\.\d+").Value}} | Sort-Object -P Version
+
+	#Get the installer with the highest version
+	$installer_path=$installer_list | Select-Object -L 1
+
+	#Check if the installer has an higher version of the executable
+	if ($installer_path.Version -le $plex_version)
+	{
+		Write-Host (Get-Date) "No new version available to install"
+		
+		#Removing old installers
+		if ($installer_dirs -ne $Null) 
+		{
+			if ($deleteOldInstallers)
+			{
+				Write-Host (Get-Date) "Removing old installers"
+				$installer_dirs | Remove-Item -R -Force
+			}
+		}
+	}
 	else
 	{
-		Write-Host (get-date) "Downloading installer from" $download_url "to" $installer_path
-		$client.DownloadFile($download_url,$installer_path)
-		Write-Host (get-date) "Download completed"
+		#Get installer in "packages" folder
+		$installer=Get-ChildItem (($installer_path.FullName)+"\Packages") -Filter "*.exe" | Select-Object -F 1
+		if ($installer -ne $Null)
+		{
+			Write-Host (Get-Date) "Installing Plex version" ($installer_path.Version)
+			
+			if ($service -ne $Null)
+			{
+				#Installing Plex when running as a service
+				if ($service.Status -eq "Running")
+				{
+					Write-Host (get-date) "Stopping Plex service" 
+					$service.Stop()
+					$service.WaitForStatus("Stopped",[TimeSpan]::FromSeconds(10))
+					if ($service.Status -ne "Stopped") { throw [System.Exception] "Can't stop Plex service" }
+				}
+				
+				installPlex
+				
+				Write-Host (get-date) "Removing Plex from startup programs" 
+				Remove-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run\" -Name "Plex Media Server"  -ErrorAction SilentlyContinue
+				
+				Write-Host (get-date) "Starting Plex service"
+				$service.Start()
+				$service.WaitForStatus("Running",[TimeSpan]::FromSeconds(10))
+				if ($service.Status -ne "Running") { throw [System.Exception] "Can't start Plex service" }
+			}
+			else
+			{
+				#Installing Plex when running as a desktop application
+				if ($process -ne $Null)
+				{
+					Write-Host (get-date) "Stopping Plex"
+					$process=Get-Process "Plex Media Server"
+					$process.CloseMainWindow()
+					$process.WaitForExit(10000)
+					if (!$process.HasExited)  { $process.Kill() }
+					$process.WaitForExit(5000)
+					if (!$process.HasExited) { throw [System.Exception] "Can't stop Plex" }
+				}
+				
+				installPlex
+				
+				Write-Host (get-date) "Starting Plex"
+				Start-Process getPlexExecutablePath
+				Start-Sleep -s 5
+				if ((Get-Process "Plex Media Server") -eq $Null) { throw [System.Exception] "Can't start Plex" }
+			}
+		}
 	}
-	
-	#stop plex service
-	$plex_service=get-service $service_name
-	if ($plex_service.Status -eq "Running") 
-	{ 
-		Write-Host (get-date) "Stopping plex media server service" 
-		$plex_service.Stop()
-		$plex_service.WaitForStatus("Stopped",[TimeSpan]::FromSeconds(10))
-		if ($plex_service.Status -ne "Stopped") { throw [System.Exception] "Can't stop plex media server service" }
-	}
-	
-	#run plex installer
-	Write-Host (get-date) "Installing newer version of plex media server"
-	Start-Process $installer_path -ArgumentList "/install /quiet /norestart" -Wait -ErrorAction Inquire
-	Write-Host (get-date) "Installation completed"
-	
-	#delete plex installer
-	if ($delete_installer)
-	{
-		Write-Host (get-date) "Deleting plex media server installer"
-		Remove-Item $installer_path
-	}
-	
-	#remove plex from windows startup programs
-	$GIP = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "Plex Media Server" -ErrorAction SilentlyContinue
-	If ($GIP -match "Plex Media Server")
-	{
-		Write-Host (get-date) "Removing plex media server from startup programs" 
-		Remove-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run\" -Name "Plex Media Server" 
-	}
-	
-	#start plex service
-	Write-Host (get-date) "Starting plex media server service"
-	$plex_service.Start()
-	$plex_service.WaitForStatus("Running",[TimeSpan]::FromSeconds(10))
-	if ($plex_service.Status -ne "Running") { throw [System.Exception] "Can't start plex media server service" }
 }
 catch { Write-Host (get-date) "Error:" $_.Exception.Message }
-Write-Host (get-date) "Plex media server updater ended"

@@ -40,9 +40,9 @@ net stop PlexService
 The only disadvantage of a service is that it is a little bit more complicated to update, because before installing the new version, the service has to be stopped, this means that the automatic update mechanism of Plex media server doesn't work.  
 The objective of this script is to have an automatic update mechanism for Plex media server also when it run as service.  
 
-This script checks for the installed version of Plex media server and compares it to the version on the download page, if a newer version is available, it downloads it and installs it automatically, taking care to stop the service before and to restart it after. This script is limited to the public version of Plex media server, PlexPass users have access to other releases, but I don't have a PlexPass because I don't need it, and therefore I can't make this script works also with the other releases.  
+This script searches for the running process of Plex and determines if it is running as a service or as a desktop application, then checks in the folder, where Plex downloads the new versions, if a newer version is vailable and in that fall it installs it. If Plex runs as a service, it will stop the service, install the newer version and restart the service. If Plex runs as a desktop application, it will kill the process, install the newer version and relaunch the application.
 
-The script has few configuration parameters, the most important one is the name of the service running Plex media server, the other parameters are really optional, like if you prefer to download the Korean version, or to change the temporary folder of the installer or if you want to keep the installer after the installation is completed.
+The script should work complete automatically, whithout the need of any parameter, although it is possible to pass as parameters the user name, the service name, and whether you want it to delete the old installer from the hard disk.
 The script can be executed in a command shell with the following instruction:  
 
 ```powershell -file PlexMediaServerUpdater.ps1```  
@@ -51,5 +51,4 @@ But it is much easier to set up a Windows scheduler task to execute the script p
 For this reason there is also a XML file, which is a Windows scheduler task, to easily set up the automatic update process. 
 Because this "software" doesn't have an installer, the script can be saved everywhere on the hard disk, therefore the only change that has to be made to the Windows scheduler task is the working directory, which is where the script has been saved.
 If you save the script in the Plex media server folder (C:\Program Files (x86)\Plex), where I have saved it, you don't have to modify the working directory of the Windows scheduler task.
-The task is configured to output the script execution in a log file, it is a simple output to a log file, thus the log file will grow indefinitely.
-This could be a problem, if the task is execute to often, the default execution interval in once a week, which shouldn't be a problem for the next 10 years.
+The task is configured to output the script execution in a log file, it is a simple output to a log file, thus the log file will grow indefinitely. This could be a problem but only after many years, because in the case that there isn't a newer version, the output in the log file is just one line, namely "No new version available to install".

@@ -6,10 +6,10 @@ Powershell script to update Plex media server when configured to run as a servic
 This script has been inspired from the [PMS as a service updater](https://forums.plex.tv/discussion/136596/utility-pms-as-a-service-updater) script.  
 
 [Plex](https://plex.tv/) is a great media server but on Windows it can't run as a service natively, to run it as a service requires a service wrapper like:
-* [PMService](https://github.com/cjmurph/PmsService)
-* [NSSM](https://nssm.cc/)
-* [SrvAny](https://www.microsoft.com/en-us/download/details.aspx?id=17657)
-* [AlwaysUp](http://www.coretechnologies.com/products/AlwaysUp/)
+* [PMService](https://github.com/cjmurph/PmsService): Free and open source, requires .Net, works only with Plex
+* [NSSM](https://nssm.cc/): Free and close source, native binary, generic solution for any application
+* [SrvAny](https://www.microsoft.com/en-us/download/details.aspx?id=17657): Free and close source, native binary, generic solution for any application, produced from Microsoft but not as good as NSSM
+* [AlwaysUp](http://www.coretechnologies.com/products/AlwaysUp/): Not free and clearly close source, native binary, generic solution for any application
 
 Running Plex media server as a service has different advantages:
 * Doesn't require a logged in user, thus less CPU and RAM, thus less electricity consume and fan noisy

@@ -23,7 +23,7 @@ To change the service account from local system to local service execute the fol
 
 ```nssm.exe set PlexService ObjectName "Local Service"```
 
-To start and stop the service use either the [service managenement console](http://www.windows-commandline.com/run-command-for-services-management/) or the following instructions in a command shell:
+To start and stop the service use either the [service management console](http://www.windows-commandline.com/run-command-for-services-management/) or the following instructions in a command shell:
 
 ```
 //To start a service use one of them:
@@ -40,9 +40,9 @@ net stop PlexService
 The only disadvantage of a service is that it is a little bit more complicated to update, because before installing the new version, the service has to be stopped, this means that the automatic update mechanism of Plex media server doesn't work.  
 The objective of this script is to have an automatic update mechanism for Plex media server also when it run as service.  
 
-This script searches for the running process of Plex and determines if it is running as a service or as a desktop application, then it determines the application data folder, which is the folder where Plex download the installer of the new versions, and it checkes if an installer of a newer version is available, in which case it installs it. If Plex is running as a service, it  stops the service, installs the newer version and restarts the service. If Plex is running as a desktop application, it kills the process, installs the newer version and relaunches the application.
+This script searches for the running process of Plex and determines if it is running as a service or as a desktop application, then it determines the application data folder, which is the folder where Plex download the installer of the new versions, and it checks if an installer of a newer version is available, in which case it installs it. If Plex is running as a service, it  stops the service, installs the newer version and restarts the service. If Plex is running as a desktop application, it kills the process, installs the newer version and relaunches the application.
 
-The script should work complete automatically, whithout the need of any parameter, although it is possible to pass as parameters the user name, the service name, and whether you want it to delete the old installer from the hard disk or not.
+The script should work complete automatically, without the need of any parameter, although it is possible to pass as parameters the user name, the service name, and whether you want it to delete the old installer from the hard disk or not.
 The script can be executed in a command shell with the following instruction:  
 
 ```powershell -file PlexMediaServerUpdater.ps1```  

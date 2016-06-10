@@ -58,3 +58,8 @@ But it is much easier to set up a Windows scheduler task to execute the script p
 For this reason there is also a XML file, which is a Windows scheduler task, to easily set up the automatic update process. The only change that has to be made to the Windows scheduler task is the working directory, which is where the script has been saved.
 If you save the script in the Plex media server folder (C:\Program Files (x86)\Plex), where I have saved it, you don't have to modify the working directory of the Windows scheduler task.
 The task is configured to output the script execution in a log file, it is a simple output to a log file, thus the log file will grow indefinitely. This could be a problem, but only after many years, because in the case that there isn't a newer version, the output in the log file is just one line, namely "No new version available to install".
+
+##Support Me
+I have invested quite some time to write this script, if you have found this script useful, consider give me a little of this time back and join the other users, who have opened a Dropbox account using my referral link: [https://db.tt/NO2L9ANq](https://db.tt/NO2L9ANq)
+
+Thank you!

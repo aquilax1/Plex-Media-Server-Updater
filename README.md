@@ -1,6 +1,6 @@
 # Plex-Media-Server-Updater
 
-##Introduction
+## Introduction
 Powershell script to update Plex media server when configured to run as a service
 
 This script has been inspired from the [PMS as a service updater](https://forums.plex.tv/discussion/136596/utility-pms-as-a-service-updater) script.  
@@ -20,7 +20,7 @@ Running Plex media server as a service has different advantages:
 The only disadvantage of a service is that it is a little bit more complicated to update, because before installing the new version, the service has to be stopped, this means that the update mechanism of Plex media server doesn't work.  
 The objective of this script is to have an automatic update mechanism for Plex media server also when it runs as service.
 
-##Plex as a service with NSSM
+## Plex as a service with NSSM
 To run Plex media server as service with NSSM execute in a command shell the following instruction:
 
 ```nssm.exe install PlexService "C:\Program Files (x86)\Plex\Plex Media Server\Plex Media Server.exe" "-noninteractive"```
@@ -43,13 +43,13 @@ sc.exe stop PlexService
 net stop PlexService
 ```
 
-##How this script works
-This script searches for the running process of Plex and determines if it is running as a service or as a desktop application, then it looks for the application data folder, which is the folder where Plex download the installers of the new versions, and it checks if an installer of a newer version is available, in which case it installs it. If Plex is running as a service, it  stops the service, installs the newer version and restarts the service. If Plex is running as a desktop application, it kills the process, installs the newer version and relaunches the application.
+## How this script works
+The script retrieves the current version of Plex from the RSS feed of Plex and then it checks if the installed version is up to dates or not. In case that a new version is available it downloads it and installs it. If Plex is running as a service, it stops the service, installs the newer version and restarts the service. If Plex is running as a desktop application, it kills the process, installs the newer version and relaunches the application. At the moment only the free version of Plex is supported.
 
-##Parameters
+## Parameters
 The script should work complete automatically, without the need of any parameter, although it is possible to pass as parameters the user name, the service name, and whether you want to delete the old installer from the hard disk to free space or not.
 
-##Installation
+## Installation
 This script hasn't an installer, just save the script somewhere in the hard disk and execute it:  
 
 ```powershell -file PlexMediaServerUpdater.ps1```  
@@ -59,7 +59,7 @@ For this reason there is also a XML file, which is a Windows scheduler task, to 
 If you save the script in the Plex media server folder (C:\Program Files (x86)\Plex), where I have saved it, you don't have to modify the working directory of the Windows scheduler task.
 The task is configured to output the script execution in a log file, it is a simple output to a log file, thus the log file will grow indefinitely. This could be a problem, but only after many years, because in the case that there isn't a newer version, the output in the log file is just one line, namely "No new version available to install".
 
-##Support Me
+## Support Me
 I have invested quite some time to write this script, if you have found this script useful, consider give me a little of this time back and join the other users, who have opened a Dropbox account using my referral link: [https://db.tt/NO2L9ANq](https://db.tt/NO2L9ANq)
 
 Thank you!

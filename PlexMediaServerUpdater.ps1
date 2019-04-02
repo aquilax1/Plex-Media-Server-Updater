@@ -1,4 +1,36 @@
-param([String] $userName, [String] $serviceName, [Boolean] $deleteOldInstallers=$True)
+<#
+.SYNOPSIS
+Powershell script to update PLEX automatically
+
+.DESCRIPTION
+This powershell script scans the PLEX folder for new downloaded versions and installs them automatically.
+This script normally doesn't require any parameter, because if PLEX is running, it can determine all that it needs to find the PLEX folder with the new installers and install them.
+
+.PARAMETER userName
+The name of the user account under which PLEX runs, it is important because the new downloaded installers are in app data folder of the user.
+If omitted and PLEX is running, the script can determine it automatically.
+
+.PARAMETER serviceName
+The name of the windows service under which PLEX runs, it is important if PLEX run as a service, because before the installation the service has to be stopped and after restarted.
+If omitted and PLEX is running, the script can determine it automatically.
+
+.PARAMETER keepInstallerFile
+Normally the script deletes the installer file after the installation to free space on the hard disk.
+To not delete it and keep it uses this parameter.
+
+.EXAMPLE
+./PlexMediaServerUpdater.ps1
+It scans the folder of the local instance of PLEX for a newer installer and install it
+
+.EXAMPLE
+./PlexMediaServerUpdater.ps1 -keepOldInstallers
+It scans the folder of the local instance of PLEX for a newer installer and install it, but it won't delete the old installer files
+
+.LINK
+https://github.com/aquilax1/Plex-Media-Server-Updater
+#>
+param([String] $userName, [String] $serviceName, [Switch] $keepOldInstallers)
+
 function getPlexService
 {
 	#Get service from service name
@@ -40,21 +72,6 @@ function getPlexUserAccount
 	throw [System.Exception] "Can't determine user account if plex is not running and no service name is specified"
 }
 
-function getPlexLocalAppDataPath
-{
-	#Get user name from Plex process of service if not specified
-	if ([System.String]::IsNullOrEmpty($userName)) { $userName=getPlexUserAccount }
-	#Get user id from user name
-	$sid=([System.Security.Principal.NTAccount]$userName).Translate([System.Security.Principal.SecurityIdentifier]).Value
-	#Get Plex local app data path if specified in Plex configuration
-	$d=New-PSDrive HKU Registry HKEY_USERS
-	$path=Get-ItemProperty ("HKU:\"+$sid+"\Software\Plex, Inc.\Plex Media Server") -Name "LocalAppDataPath" -ErrorAction SilentlyContinue
-	if ($path -match "LocalAppDataPath" ) { return $path.LocalAppDataPath }
-	#Get Plex default path for local app data path
-	$path=Get-ItemProperty ("HKLM:\Software\Microsoft\Windows NT\CurrentVersion\ProfileList\"+$sid) -Name "ProfileImagePath" -ErrorAction SilentlyContinue
-	return ($path.ProfileImagePath)+"\AppData\Local\Plex Media Server"
-}
-
 function installPlex
 {
 	try
@@ -68,6 +85,8 @@ function installPlex
 
 try
 {
+	$web=New-Object System.Net.WebClient
+
 	#Get Plex process, if it is running
 	$process=gwmi Win32_Process -Filter "Name='Plex Media Server.exe'"
 	#Write-Host (Get-Date) "Plex is running?" ($process -ne $Null)
@@ -82,35 +101,25 @@ try
 	#Get Plex version from executable
 	$plex_version=[System.Version] [System.Diagnostics.FileVersionInfo]::GetVersionInfo((getPlexExecutablePath)).FileVersion
 	#Write-Host (Get-Date) "Plex current installed version is" $plex_version
-
-	#Get all folders with their version in the "updates" folder
-	$installer_dirs=Get-ChildItem -D ((getPlexLocalAppDataPath)+"\Updates")
 	
-	#Get installer versions to compare to plex installed version
-	$installer_list=$installer_dirs | Select-Object -P FullName,@{Name="Version"; Expression={[System.Version][regex]::match($_.Name,"\d+\.\d+\.\d+\.\d+").Value}} | Sort-Object -P Version
-
-	#Get the installer with the highest version
-	$installer_path=$installer_list | Select-Object -L 1
-
-	#Check if the installer has an higher version of the executable
-	if ($installer_path.Version -le $plex_version)
+	#Get current release from Plex API
+	$current_release=(ConvertFrom-Json $web.DownloadString("https://plex.tv/pms/downloads/5.json")).computer.Windows
+	$current_version=[System.Version][regex]::match($current_release.version,"\d+\.\d+\.\d+\.\d+").Value
+	
+	if ($current_version -le $plex_version)
 	{
-		Write-Host (Get-Date) "No new version available to install"
-		
-		#Removing old installers
-		if ($installer_dirs -ne $Null) 
-		{
-			if ($deleteOldInstallers)
-			{
-				Write-Host (Get-Date) "Removing old installers"
-				$installer_dirs | Remove-Item -R -Force
-			}
-		}
+		Write-Host (Get-Date) "No new version available"
 	}
 	else
 	{
-		#Get installer in "packages" folder
-		$installer=Get-ChildItem (($installer_path.FullName)+"\Packages") -Filter "*.exe" | Select-Object -F 1
+		Write-Host (Get-Date) "Downloading new version" $current_version
+		$url=$current_release.releases[0].url
+		#write-host (get-date) $url
+		$path=$Env:temp+$url.substring($url.LastIndexOf("/"))
+		#write-host (get-date) $path
+		$web.DownloadFile($url,$path)
+	
+		$installer=Get-ChildItem $path
 		if ($installer -ne $Null)
 		{
 			Write-Host (Get-Date) "Installing Plex version" ($installer_path.Version)
@@ -157,6 +166,11 @@ try
 				Start-Sleep -s 5
 				if ((Get-Process "Plex Media Server") -eq $Null) { throw [System.Exception] "Can't start Plex" }
 			}
+		}
+		if (-not $keepInstallerFile)
+		{
+			Write-Host (Get-Date) "Removing installer"
+			Remove-Item $installer -Force
 		}
 	}
 }

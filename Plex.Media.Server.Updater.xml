@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-16"?>
+<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
     <Description>Windows Task For Plex Media Server Updater</Description>
@@ -40,7 +40,7 @@
   <Actions Context="Author">
     <Exec>
       <Command>powershell</Command>
-      <Arguments>-c "powershell -c .\PlexMediaServerUpdater.ps1 2&gt;&amp;1 &gt;&gt; .\PlexMediaServerUpdater.log"</Arguments>
+      <Arguments>-ExecutionPolicy ByPass -c "powershell -c .\PlexMediaServerUpdater.ps1 &gt;&gt; .\PlexMediaServerUpdater.log 2&gt;&amp;1"</Arguments>
       <WorkingDirectory>C:\Program Files (x86)\Plex</WorkingDirectory>
     </Exec>
   </Actions>

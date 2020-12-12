@@ -103,6 +103,7 @@ try
 	#Write-Host (Get-Date) "Plex current installed version is" $plex_version
 	
 	#Get current release from Plex API
+	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 	$current_release=(ConvertFrom-Json $web.DownloadString("https://plex.tv/pms/downloads/5.json")).computer.Windows
 	$current_version=[System.Version][regex]::match($current_release.version,"\d+\.\d+\.\d+\.\d+").Value
 	
